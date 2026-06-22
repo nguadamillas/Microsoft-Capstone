@@ -70,10 +70,24 @@ python -m models.train_models
 ### 6. Launch the dashboard
 
 ```bash
-streamlit run app/streamlit_app.py
+streamlit run app/streamlit_designed.py
 ```
 
 Open http://localhost:8501 in your browser.
+
+> Note: this repo installs the visual dashboard dependencies out of the box. If you want to train or evaluate the LightGBM models from `models/train_models.py`, install `lightgbm` separately with OpenMP support. On macOS, that typically requires:
+>
+> ```bash
+> brew install libomp
+> source .venv/bin/activate
+> pip install lightgbm
+> ```
+>
+> Then run:
+>
+> ```bash
+> python -m models.train_models
+> ```
 
 ---
 
