@@ -38,15 +38,17 @@ def dfs():
 # ── Stub backend ─────────────────────────────────────────────────────────────────
 
 # Maps a keyword in the question → the pandas code the "model" emits.
+# Uses the REAL Gold column names (awarded_amount, tenders_count, win_probability, …).
 GOLDEN_CODE = {
     "top 5 countries": "result = awards['buyer_country'].value_counts().head(5)",
-    "average savings": "result = awards.groupby('cpv_division_name')['savings_pct'].mean().sort_values(ascending=False).head(5)",
-    "sme": "result = awards['sme_winner'].mean() * 100",
+    "highest average savings": "result = cpv_analysis[['cpv_division_name','avg_savings']].sort_values('avg_savings', ascending=False).head(5)",
     "total estimated value of open": "result = opportunities['estimated'].sum()",
-    "savings % across": "result = awards.groupby('proc_type')['savings_pct'].mean()",
-    "most competitive": "result = awards.groupby('cpv_division_name')['avg_tenders_per_lot'].mean().sort_values(ascending=False).head(5)",
-    "top 10 cpv": "result = awards.groupby('cpv_division_name')['awarded_eur'].sum().sort_values(ascending=False).head(10)",
+    "savings % across": "result = market_summary[market_summary['dimension']=='proc_type'][['dimension_value','avg_savings_pct']]",
+    "most competitive": "result = awards.groupby('cpv_division_name')['tenders_count'].mean().sort_values(ascending=False).head(5)",
+    "top 10 cpv": "result = awards.groupby('cpv_division_name')['awarded_amount'].sum().sort_values(ascending=False).head(10)",
     "largest tenders on average": "result = opportunities.groupby('buyer_country')['estimated'].mean().sort_values(ascending=False).head(5)",
+    "average predicted award value": "result = notice_enrichment['predicted_award_value'].mean()",
+    "win probability by number of bids": "result = bid_win_probability.groupby('n_bids')['win_probability'].mean()",
 }
 
 
@@ -93,12 +95,13 @@ class StubBackend:
 GOLDEN_QUESTIONS = [
     "What are the top 5 countries by number of contract awards?",
     "Which CPV categories have the highest average savings %?",
-    "What % of awards went to SMEs?",
     "What is the total estimated value of open tenders?",
     "Compare savings % across Services, Supplies and Works",
     "Show the most competitive procurement categories",
     "What are the top 10 CPV categories by total awarded value?",
     "Which buyer countries publish the largest tenders on average?",
+    "What is the average predicted award value?",
+    "Average win probability by number of bids?",
 ]
 
 
@@ -112,9 +115,9 @@ def test_golden_question_executes(question, dfs):
 
 
 def test_results_match_direct_pandas(dfs):
-    res = answer_question("What % of awards went to SMEs?", dfs, backend=StubBackend())
-    expected = dfs["awards"]["sme_winner"].mean() * 100
-    assert abs(float(res.result) - float(expected)) < 1e-9
+    res = answer_question("What is the average predicted award value?", dfs, backend=StubBackend())
+    expected = dfs["notice_enrichment"]["predicted_award_value"].mean()
+    assert abs(float(res.result) - float(expected)) < 1e-6
 
     res2 = answer_question(
         "What are the top 5 countries by number of contract awards?", dfs, backend=StubBackend()
@@ -126,7 +129,7 @@ def test_results_match_direct_pandas(dfs):
 def test_self_correction_loop(dfs):
     """First code errors (bad column); engine feeds the traceback back and retries."""
     res = answer_question(
-        "What % of awards went to SMEs?", dfs, backend=StubBackend(retry_bad_first=True), max_steps=4
+        "What is the average predicted award value?", dfs, backend=StubBackend(retry_bad_first=True), max_steps=4
     )
     assert res.ok, f"engine did not recover: {res.error}"
     assert res.steps >= 2, "expected at least one retry"
@@ -160,7 +163,14 @@ def test_execute_happy_path(dfs):
 def test_schema_context_is_schema_only(dfs):
     ctx = build_schema_context(dfs)
     assert "opportunities" in ctx and "awards" in ctx
-    assert "savings_pct" in ctx and "buyer_country" in ctx
+    assert "awarded_amount" in ctx and "buyer_country" in ctx
+
+
+def test_schema_context_flags_empty_columns(dfs):
+    """Engine must mark 100%-empty columns so the model avoids them (e.g. is_sme)."""
+    ctx = build_schema_context(dfs)
+    assert "is_sme" in ctx
+    assert "EMPTY" in ctx
 
 
 def test_missing_credentials_is_graceful(dfs, monkeypatch):
@@ -186,4 +196,4 @@ def test_live_smoke(dfs):
     res = answer_question("What are the top 3 countries by total awarded value?", dfs)
     assert res.ok, f"live call failed: {res.error}"
     assert res.result is not None
-    assert res.code and "awarded_eur" in res.code.lower()
+    assert res.code and "awarded" in res.code.lower()
