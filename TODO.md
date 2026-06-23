@@ -21,10 +21,30 @@ demo-ready." Check items off as we go. See `MEMORY.md` for context.
 - [x] Added graceful API-error handling in the engine
 - [ ] (optional) rotate the GitHub token, since it was shared in chat
 
-## Next — verify in the UI
-- [ ] `streamlit run app/dashboard.py` → open the **Chatbot** tab
-- [ ] Ask a sample question; confirm: real answer, result table, "show code" expander,
-      and that sidebar filters change the answer
+## ✅ UI + real data — DONE
+- [x] Fixed chatbot layout: scrollable message box + input bar pinned beneath it
+- [x] Read the capstone Google Drive; found real Gold tables + `GOLD_DATA_DICTIONARY.md`
+- [x] Integrated real Gold parquet into `data/gold/` (flattened nested unzip)
+- [x] Verified chatbot runs on real data and adapts to the real schema
+
+## ✅ Align chatbot with the REAL Gold schema — DONE
+- [x] Downloaded the 2 ML tables from Drive → `data/gold/`
+- [x] Added column-coverage (fill rate) to the engine's schema context; bot now avoids
+      empty columns (`is_sme`, `winner_country`, `winner_name`) and declines honestly
+- [x] Rewrote sample questions to real columns (incl. ML: predicted value, win prob, review flag)
+- [x] Updated `docs/gold_contract.md` to the real schema
+- [x] Realigned synthetic fixtures + tests (19 pass)
+- [x] Loaded the extra + ML tables into the chatbot
+- [x] Added prediction caveats + off-topic decline to the system prompt
+- [x] Re-verified live on real data (CPV review flags = 1,524 ✓)
+
+## ✅ Standalone page + don't-touch-teammates — DONE
+- [x] Built `app/chatbot_app.py` (own ChatGPT-style page, input docked at bottom)
+- [x] Reverted `app/dashboard.py` to `origin/dev` (teammate's file untouched)
+
+## Optional polish (later)
+- [ ] Clarify in the prompt that "open tenders" = Contract Notices (CN), not `proc_type=='open'`
+- [ ] More sample questions; nicer result formatting; constrain off-topic further if needed
 
 ## Decision before pushing
 - [ ] Decide: **keep** the `dashboard.py` Tab-4 integration, OR **split** the chatbot

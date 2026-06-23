@@ -25,8 +25,13 @@ the prompt" approach — that one can hallucinate numbers.)
 ## Where the team stands (as of last session)
 
 - Bronze ✅ done · Silver ✅ done (PASS 68 / WARN 8 / FAIL 0).
-- Gold ⚠️ **only a smoke-test starter** — NOT final. Owned by Role 2.
-- ML models 🔸 code exists, only placeholder artifacts.
+- Gold ✅ **real tables now delivered** (from the capstone Google Drive) — see real-schema
+  notes below. Base tables: `gold_opportunities, gold_awards, gold_market_summary,
+  gold_cpv_analysis` (+ `gold_notices, gold_lots, gold_country_kpis, gold_cpv_kpis`).
+- ML models ✅ **batch-scored into Gold** as precomputed columns — tables
+  `gold_notice_enrichment` (cpv_pred, predicted_award_value, cpv_review_flag) and
+  `gold_bid_win_probability` (win_probability, is_winner_actual). NOT in the local zip yet
+  (separate files in the Drive `Gold/` folder) — need to download.
 - Dashboard 🔸 big WIP on the `dev` branch (`app/dashboard.py`).
 - Chatbot (mine) 🔸 real engine built this session — see below.
 
@@ -57,17 +62,44 @@ the prompt" approach — that one can hallucinate numbers.)
 - **LLM backend:** **GitHub Models (free)** chosen for testing (Microsoft-aligned, OpenAI-compatible, runs gpt-4o). Engine also supports Azure OpenAI and Anthropic via env vars (`LLM_PROVIDER`).
 - **Decoupling strategy:** build against a schema contract + synthetic data now; swap in real Gold later with no code change (drop parquet into `data/gold/`).
 
-## Gotchas / things to remember
+## Real Gold schema (verified 2026-06-23 from the downloaded parquet)
 
-- **Gold schema mismatch:** `pipeline/gold.py`'s `run()` writes `gold_notices / gold_lots /
-  gold_awards / gold_country_kpis / gold_cpv_kpis`, but the dashboard + chatbot read
-  `gold_opportunities / gold_awards / gold_market_summary / gold_cpv_analysis`. The
-  `build_opportunities / build_market_summary / build_cpv_analysis` functions exist but
-  aren't called in `run()`. **Role 2 must fix this** (see `docs/gold_contract.md`).
-- **No real Gold parquet locally** — we test on synthetic fixtures.
-- **Open question:** keep the `dashboard.py` integration, or split the chatbot into its
-  own file so the teammate's dashboard stays untouched? (I flagged not wanting to edit
-  teammates' work.)
+Real data lives in `data/gold/*.parquet` (unzipped from the Drive; the nested
+`data/gold/data/...` was flattened; bronze/silver moved to `data/bronze`, `data/silver`).
+`data/` is fully git-ignored.
+
+- `gold_opportunities` (29,537 rows) — ✅ **matches our contract exactly**.
+- `gold_market_summary` (41) and `gold_cpv_analysis` (38) — ✅ match the contract.
+- `gold_awards` (97,913 rows) — ⚠️ **DIFFERENT from our contract**: it is **lot-grained**
+  (has `lot_id`, `lot_result_id`), and uses different names:
+  `awarded_amount`/`total_awarded` (NOT `awarded_eur`), **no `savings_pct`**,
+  `tenders_count` (NOT `avg_tenders_per_lot`), `winner_name`/`is_sme` (NOT
+  `winner_names`/`sme_winner`).
+- **Empty columns in `gold_awards`:** `is_sme`, `winner_country`, `winner_name` are **100%
+  null**. So SME / winner-identity questions are NOT answerable on current Gold (matches the
+  data-dictionary "bidders anonymized" caveat). `winner_org_id` has anonymized `TPA-*` ids.
+- Savings is available via `gold_market_summary.avg_savings_pct` / `gold_cpv_analysis.avg_savings`,
+  or computed from `estimated` vs `awarded_amount`/`total_awarded`.
+- Also available (clean aggregates): `gold_country_kpis` (63), `gold_cpv_kpis` (46),
+  `gold_notices` (71,432), `gold_lots` (227,017).
+
+## Key behaviour confirmed
+- The schema-agnostic engine **adapts to the real columns automatically** and **truthfully
+  reports empty columns** instead of hallucinating (verified live on real data).
+
+## Resolved
+- **Chatbot now lives in its own page** `app/chatbot_app.py` (ChatGPT-style, input docked at
+  bottom). `app/dashboard.py` was **reverted to `origin/dev`** — teammate's file is untouched.
+- **Synthetic fixtures realigned** to the real schema (lot-grained awards, real names, empty
+  SME/winner columns, + the 2 ML tables). Tests pass (19).
+- **Engine aligned:** schema context shows per-column fill rate (marks EMPTY columns);
+  system prompt declines off-topic questions, prefers actuals over predictions, and honors
+  the prediction caveats.
+
+## Known minor polish item
+- The model sometimes reads "open tenders" literally as `proc_type=='open'` (proc_type is
+  Services/Supplies/Works). "Open tenders" really means Contract Notices (CN). Could clarify
+  in the prompt. Low priority — it reports "no data" rather than hallucinating.
 
 ## Credentials to run it live
 
@@ -91,5 +123,23 @@ Set ONE in `.env` at project root (then `python scripts/try_chatbot.py`):
 - **Live end-to-end test PASSED** via GitHub Models (gpt-4o): chatbot wrote pandas,
   executed it, and returned correct answers (verified against direct pandas — e.g.
   SME=46.67%, top country Romania=14). The engine genuinely computes, no hallucination.
-- **Next:** preview in the Streamlit UI; decide keep-vs-split of the dashboard
-  integration; then polish (harder questions, prompt tuning, result formatting).
+- Fixed the chatbot UI: scrollable message box with the input bar pinned beneath it;
+  relabelled pill to "GPT-4o · text-to-pandas".
+- **Read the capstone Google Drive** (via Chrome connector) → found the real Gold tables +
+  `GOLD_DATA_DICTIONARY.md` + ML-output tables + `final_bronze_silver_gold_parquets.zip`.
+- **Integrated real Gold data** into `data/gold/` (flattened the nested unzip). Verified the
+  chatbot runs on real data and adapts to the real schema. Documented real-schema findings
+  above (esp. lot-grained `gold_awards`, empty SME/winner columns).
+- **Next / pending:** (1) download the 2 ML tables from Drive `Gold/`; (2) realign
+  contract + fixtures + sample questions + prompt to the real schema; (3) add column-coverage
+  to the schema context so the bot avoids empty columns; (4) load the extra tables into the chatbot.
+
+### 2026-06-23 (continued — alignment + standalone page)
+- Downloaded the 2 ML tables from Drive into `data/gold/` (notice_enrichment via CSV→parquet
+  after a transient Google 503 on the parquet; bid_win_probability direct).
+- Aligned the engine (per-column fill-rate in schema context, prediction caveats, off-topic
+  decline) and realigned fixtures/tests/contract to the real schema.
+- **Built standalone `app/chatbot_app.py`; reverted `app/dashboard.py` to origin/dev.**
+- **Verified live on real data:** "CPV review flags → 1,524" (matches dictionary), SME question
+  now honestly declines (empty column), off-topic politely redirected. 19 tests pass.
+- **Done so far this phase:** steps 1–4 (align, ML answers, own page, polish). Next: commit + push.
