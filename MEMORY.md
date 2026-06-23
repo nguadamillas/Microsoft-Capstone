@@ -88,8 +88,10 @@ Real data lives in `data/gold/*.parquet` (unzipped from the Drive; the nested
   reports empty columns** instead of hallucinating (verified live on real data).
 
 ## Resolved
-- **Chatbot now lives in its own page** `app/chatbot_app.py` (ChatGPT-style, input docked at
-  bottom). `app/dashboard.py` was **reverted to `origin/dev`** — teammate's file is untouched.
+- **Two ways to use the chatbot, both on our engine:**
+  - `app/chatbot_app.py` — standalone ChatGPT-style page (input docked at bottom).
+  - `app/dashboard.py` **Tab 4** — re-wired to our engine with a **minimal, Tab-4-only edit**
+    (rest of the teammate's dashboard untouched), so the full dashboard shows the good chatbot.
 - **Synthetic fixtures realigned** to the real schema (lot-grained awards, real names, empty
   SME/winner columns, + the 2 ML tables). Tests pass (19).
 - **Engine aligned:** schema context shows per-column fill rate (marks EMPTY columns);

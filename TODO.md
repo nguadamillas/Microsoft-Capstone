@@ -38,9 +38,10 @@ demo-ready." Check items off as we go. See `MEMORY.md` for context.
 - [x] Added prediction caveats + off-topic decline to the system prompt
 - [x] Re-verified live on real data (CPV review flags = 1,524 ✓)
 
-## ✅ Standalone page + don't-touch-teammates — DONE
+## ✅ Standalone page + dashboard tab — DONE
 - [x] Built `app/chatbot_app.py` (own ChatGPT-style page, input docked at bottom)
-- [x] Reverted `app/dashboard.py` to `origin/dev` (teammate's file untouched)
+- [x] Re-wired dashboard **Tab 4** to our engine with a **minimal, Tab-4-only edit**
+      (loads the ML + extra tables; respects sidebar filters; rest of dashboard untouched)
 
 ## Optional polish (later)
 - [ ] Clarify in the prompt that "open tenders" = Contract Notices (CN), not `proc_type=='open'`
