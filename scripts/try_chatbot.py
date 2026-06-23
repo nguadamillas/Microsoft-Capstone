@@ -35,17 +35,23 @@ SAMPLES = [
 
 
 def load_dfs() -> tuple[dict[str, pd.DataFrame], bool]:
+    # file in data/gold  →  variable name exposed to the engine
     file_map = {
-        "opportunities":  "gold_opportunities",
-        "awards":         "gold_awards",
-        "market_summary": "gold_market_summary",
-        "cpv_analysis":   "gold_cpv_analysis",
+        "gold_opportunities":       "opportunities",
+        "gold_awards":              "awards",
+        "gold_market_summary":      "market_summary",
+        "gold_cpv_analysis":        "cpv_analysis",
+        "gold_notice_enrichment":   "notice_enrichment",
+        "gold_bid_win_probability": "bid_win_probability",
+        "gold_country_kpis":        "country_kpis",
+        "gold_cpv_kpis":            "cpv_kpis",
     }
     real = {}
-    for key, fname in file_map.items():
+    for fname, key in file_map.items():
         p = GOLD_DIR / f"{fname}.parquet"
-        real[key] = pd.read_parquet(p) if p.exists() else pd.DataFrame()
-    if any(len(v) for v in real.values()):
+        if p.exists():
+            real[key] = pd.read_parquet(p)
+    if real:
         return real, False
     return make_synthetic_gold(), True
 
