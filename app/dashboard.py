@@ -14,12 +14,15 @@ from plotly.subplots import make_subplots
 import streamlit as st
 from dotenv import load_dotenv
 
+
 warnings.filterwarnings("ignore")
 load_dotenv()
 
 ROOT = Path(__file__).parent.parent
 GOLD_DIR  = ROOT / "data" / "gold"
 MODEL_DIR = ROOT / "models" / "saved"
+
+ASSISTANT_URL = "http://localhost:5501"   # standalone chatbot — change port here if needed
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -251,6 +254,122 @@ hr {{ border-color: {T["border"]} !important; margin: 16px 0 !important; }}
 </style>
 """, unsafe_allow_html=True)
 
+# ── Light-mode-only contrast fixes ────────────────────────────────────────────
+# Injected ONLY when theme == "light" so dark mode is completely unaffected.
+# Uses hardcoded light-palette values (THEME["light"]) — never T — so there is
+# zero risk of this block leaking into a dark-mode render.
+if st.session_state.get("theme", "dark") == "light":
+    _LT = THEME["light"]   # always the light palette, independent of T
+    st.markdown(f"""
+<style>
+/* ── Light mode: match Streamlit emotion-cache components ── */
+html, body, [class*="st-emotion-cache"] {{
+    background-color: {_LT["page"]} !important;
+    color: {_LT["heading"]} !important;
+}}
+
+/* ── Override Streamlit CSS variables ── */
+:root, .stApp, [data-testid="stAppViewContainer"] {{
+    --text-color:                 {_LT["heading"]} !important;
+    --primary-color:              {_LT["accent"]}  !important;
+    --background-color:           {_LT["page"]}    !important;
+    --secondary-background-color: {_LT["card"]}    !important;
+}}
+
+/* ── Markdown / prose text ── */
+.stMarkdown p, .stMarkdown li, .stMarkdown ul, .stMarkdown ol,
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+.stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li {{
+    color: {_LT["heading"]} !important;
+}}
+
+/* ── Chat-message content ── */
+[data-testid="stChatMessageContent"],
+[data-testid="stChatMessageContent"] p,
+[data-testid="stChatMessageContent"] li,
+[data-testid="stChatMessageContent"] ul,
+[data-testid="stChatMessageContent"] ol,
+[data-testid="stChatMessageContent"] h1,
+[data-testid="stChatMessageContent"] h2,
+[data-testid="stChatMessageContent"] h3,
+[data-testid="stChatMessageContent"] strong,
+[data-testid="stChatMessageContent"] em {{
+    color: {_LT["heading"]} !important;
+}}
+
+/* ── Markdown tables ── */
+.stMarkdown table, .stMarkdown thead, .stMarkdown tbody,
+.stMarkdown tr, .stMarkdown th, .stMarkdown td,
+[data-testid="stMarkdownContainer"] table,
+[data-testid="stMarkdownContainer"] th,
+[data-testid="stMarkdownContainer"] td,
+[data-testid="stChatMessageContent"] table,
+[data-testid="stChatMessageContent"] th,
+[data-testid="stChatMessageContent"] td {{
+    color: {_LT["heading"]} !important;
+    border-color: {_LT["border"]} !important;
+}}
+.stMarkdown th,
+[data-testid="stMarkdownContainer"] th,
+[data-testid="stChatMessageContent"] th {{
+    background: {_LT["surface"]} !important;
+}}
+
+/* ── Expander: label + triangle marker ── */
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary p,
+details > summary,
+details > summary span {{
+    color: {_LT["heading"]} !important;
+}}
+details > summary::marker,
+details > summary::-webkit-details-marker {{
+    color: {_LT["accent"]} !important;
+}}
+
+/* ── Captions and metric sub-labels ── */
+.stCaption, [data-testid="stCaption"],
+[data-testid="stMetricLabel"] p,
+[data-testid="stMetricDelta"] {{
+    color: {_LT["muted"]} !important;
+}}
+[data-testid="stMetricValue"] {{
+    color: {_LT["heading"]} !important;
+}}
+
+/* ── Links: brand blue, never red ── */
+a,
+.stMarkdown a,
+[data-testid="stMarkdownContainer"] a,
+[data-testid="stChatMessageContent"] a {{
+    color: {_LT["accent"]} !important;
+    text-decoration: none;
+}}
+a:hover,
+.stMarkdown a:hover,
+[data-testid="stMarkdownContainer"] a:hover,
+[data-testid="stChatMessageContent"] a:hover {{
+    color: {_LT["accent2"]} !important;
+    text-decoration: underline;
+}}
+
+/* ── Sidebar widget labels ── */
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span:not([data-testid]),
+[data-testid="stSidebar"] li {{
+    color: {_LT["heading"]} !important;
+}}
+[data-testid="stSidebar"] .stCaption {{
+    color: {_LT["muted"]} !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Microsoft 4-square logo SVG ───────────────────────────────────────────────
 MS_LOGO_SVG = """<svg width="22" height="22" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect x="1"  y="1"  width="10" height="10" fill="#f25022"/>
@@ -444,6 +563,24 @@ def _load_data():
     opp, awards = _demo_data()
     opp    = _try("gold_opportunities.parquet", opp)
     awards = _try("gold_awards.parquet",        awards)
+    awards = awards.rename(columns={
+        "awarded_amount": "awarded_eur",
+        "contract_date": "award_date",
+        "tenders_count": "avg_tenders_per_lot",
+    })
+    if "savings_pct" not in awards.columns:
+        if {"estimated", "awarded_eur"}.issubset(awards.columns):
+            est = pd.to_numeric(awards["estimated"], errors="coerce")
+            awd = pd.to_numeric(awards["awarded_eur"], errors="coerce")
+            awards["savings_pct"] = ((est - awd) / est * 100).clip(-100, 100)
+        else:
+            awards["savings_pct"] = pd.NA
+    if "sme_winner" not in awards.columns:
+        awards["sme_winner"] = (pd.to_numeric(
+            awards.get("sme_tenders", 0), errors="coerce").fillna(0) > 0).astype(int)
+    if "num_lots" not in awards.columns:
+        awards["num_lots"] = 1
+    opp = opp.rename(columns={"awarded_amount": "awarded_eur"})
     return opp, awards
 
 
@@ -622,8 +759,9 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── Main tabs ─────────────────────────────────────────────────────────────────
-tab_opp, tab_aw, tab_ml, tab_pred = st.tabs([
-    "📋  Opportunities", "🏆  Awards", "🤖  ML Intelligence", "🎯  Predictions"
+tab_opp, tab_aw, tab_ml, tab_pred, tab_asst = st.tabs([
+    "Opportunities", "Awards", "ML Intelligence", "Predictions",
+    "Procurement Assistant",
 ])
 
 
@@ -837,7 +975,7 @@ with tab_opp:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_aw:
     n_aw = len(aw_f)
-    total_eur = aw_f["awarded_eur"].sum()
+    total_eur = aw_f["awarded_eur"].sum() if "awarded_eur" in aw_f.columns else aw_f.get("awarded_amount", pd.Series(dtype=float)).sum()
     med_sav   = aw_f["savings_pct"].median()
     sme_rate  = aw_f["sme_winner"].mean() * 100 if n_aw else 0
     avg_comp  = aw_f["avg_tenders_per_lot"].mean() if n_aw else 0
@@ -1659,6 +1797,15 @@ with tab_pred:
         ],
     })
     st.dataframe(bench_df, use_container_width=True, hide_index=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — PROCUREMENT ASSISTANT (standalone chatbot embedded via iframe)
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_asst:
+    import streamlit.components.v1 as components
+    st.caption("If the assistant doesn't load, make sure its servers are running (see assistant/README.md).")
+    components.iframe(ASSISTANT_URL, height=760, scrolling=True)
 
 
 # ── Fixed footer ───────────────────────────────────────────────────────────────
