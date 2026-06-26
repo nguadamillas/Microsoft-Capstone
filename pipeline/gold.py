@@ -489,23 +489,28 @@ def build_gold_awards(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         .reset_index()
     )
     contract_agg = _null_empty_sum(contract_agg, "contract_value", "contract_value_count")
-    winner_tenders = tenders[["notice_id", "tender_id", "tender_value", "tender_currency"]]
+    _t = tenders.copy()
+    _t["_rank_num"] = pd.to_numeric(_t["rank"], errors="coerce")
+    winner_tenders = (
+        _t[_t["is_ranked"].astype(str).str.lower() == "true"]
+        .sort_values("_rank_num")
+        .drop_duplicates(subset=["notice_id", "lot_id"], keep="first")
+        [["notice_id", "lot_id", "tender_value", "tender_currency"]]
+    )
 
     df = (
         awards
         .merge(notices[notice_cols], on="notice_id", how="left")
         .merge(lots[lot_cols], on=["notice_id", "lot_id"], how="left")
         .merge(
-            organisations[winner_cols],
-            left_on=["notice_id", "winner_org_id"],
-            right_on=["notice_id", "org_id"],
+            winner_tenders,
+            on=["notice_id", "lot_id"],
             how="left",
         )
         .merge(contract_agg, on=["notice_id", "lot_result_id"], how="left")
         .merge(
             winner_tenders,
-            left_on=["notice_id", "winner_tender_id"],
-            right_on=["notice_id", "tender_id"],
+            on=["notice_id", "lot_id"],
             how="left",
         )
     )
@@ -516,7 +521,7 @@ def build_gold_awards(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         "buyer_name", "buyer_country", "project_title", "lot_title",
         "proc_type", "procedure_type", "cpv_code", "cpv_division",
         "cpv_division_name", "result_code", "is_awarded", "winner_org_id",
-        "winner_name", "winner_country", "is_sme", "winner_tender_id",
+        "winner_name", "winner_country", "is_sme",
         "tenders_count", "sme_tenders", "awarded_amount", "award_currency",
         "contract_value", "contract_date", "contract_count", "tender_value",
         "tender_currency", "estimated", "total_awarded", "lot_est",
