@@ -21,7 +21,7 @@ from data import load_gold, run_query, schema_context
 load_dotenv()
 
 MODEL = os.environ.get("ASSISTANT_MODEL", "claude-sonnet-4-6")  # confirm your team's string
-MAX_TOOL_HOPS = 6
+MAX_TOOL_HOPS = 12
 
 TABLES, USING_SAMPLE = load_gold()
 SCHEMA = schema_context(TABLES)
@@ -52,7 +52,9 @@ Data integrity — CRITICAL:
 Voice: a concise procurement strategist. Explain what a figure means for buyer/supplier strategy, not
 how the model works. Keep answers tight.
 
-Finishing: once you have the figures, reply with ONLY a single JSON object (no prose, no code fences):
+Finishing: once you have the figures, your ENTIRE reply must be the raw JSON object below and
+nothing else — no introductory sentence, no trailing note, no markdown code fences (no ```).
+The very first character of your reply must be {{ and the very last must be }}:
 {{
   "text": "<short markdown business answer>",
   "kpis": [{{"label": "<short label>", "value": "<formatted value e.g. EUR 4.2B / 18.9% / 440>"}}],
@@ -101,17 +103,45 @@ def _client():
 
 
 def _coerce_answer(raw_text: str) -> dict:
-    """Parse the model's final JSON answer; fall back to plain text if needed."""
+    """Parse the model's final JSON answer; fall back to plain text only as last resort.
+
+    Handles three cases the model occasionally produces despite instructions:
+    1. Clean JSON — parse directly.
+    2. JSON wrapped in ``` or ```json code fences — strip the fence, then parse.
+    3. JSON embedded in surrounding prose — extract the first balanced {...} block.
+    """
     raw = raw_text.strip()
+
+    # Strip code fences (``` or ```json ... ```)
     if raw.startswith("```"):
-        raw = raw.strip("`")
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw
+        raw = raw.lstrip("`")
+        if raw.startswith("json"):
+            raw = raw[4:]
+        # Drop trailing fence if present
+        if raw.rstrip().endswith("```"):
+            raw = raw.rstrip()[:-3]
+        raw = raw.strip()
+
+    # Attempt 1: direct parse of the (possibly fence-stripped) text
     try:
         obj = json.loads(raw)
         if isinstance(obj, dict) and "text" in obj:
             return obj
     except json.JSONDecodeError:
         pass
+
+    # Attempt 2: extract first balanced { ... } from prose-wrapped output
+    start = raw_text.find("{")
+    end   = raw_text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            obj = json.loads(raw_text[start : end + 1])
+            if isinstance(obj, dict) and "text" in obj:
+                return obj
+        except json.JSONDecodeError:
+            pass
+
+    # Last resort: return the raw text so the frontend shows something
     return {"text": raw_text, "source": ""}
 
 
