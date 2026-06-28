@@ -7,9 +7,12 @@ __pycache__/
 
 # Data (too large for git — document in README instead)
 data/raw/
-data/bronze/
-data/silver/
-data/gold/
+data/bronze/*
+!data/bronze/*.parquet
+data/silver/*
+!data/silver/*.parquet
+data/gold/*
+!data/gold/*.parquet
 
 # Models (use git-lfs or document separately)
 models/saved/*.joblib
