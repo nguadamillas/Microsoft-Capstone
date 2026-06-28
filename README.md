@@ -21,7 +21,7 @@ Silver validation report
 Gold    (committed Parquet datasets · starter/smoke tables + dashboard analytics)
     ↓  models/train_models.py
 ML Models  (win probability · competition · bid estimation)
-    ↓  app/streamlit_app.py
+    ↓  app/dashboard.py
 Dashboard + Chatbot
 ```
 
@@ -95,7 +95,7 @@ python -m models.train_models
 ### 6. Launch the dashboard
 
 ```bash
-streamlit run app/streamlit_app.py
+streamlit run app/dashboard.py
 ```
 
 Open http://localhost:8501 in your browser.
@@ -163,8 +163,8 @@ Microsoft-Capstone/
 │   ├── train_models.py        ← feature engineering + 3 LightGBM models
 │   └── saved/                 ← .joblib model files + metrics JSON
 ├── app/
-│   ├── streamlit_app.py       ← Streamlit dashboard
-│   ├── dashboard.py           ← expanded dashboard experience
+│   ├── dashboard.py           ← main Streamlit dashboard
+│   ├── streamlit_app.py       ← legacy/simple Streamlit dashboard
 │   ├── procurement_assistant.py
 │   └── project_chatbot.py
 └── data/
