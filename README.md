@@ -8,18 +8,21 @@ Transform 1 month of European public procurement data into strategic intelligenc
 ## Architecture
 
 ```
-Raw XML (TED)
+TED packages
     ↓  pipeline/ingest.py
-Bronze  (8 Parquet tables · raw strings)
+Raw XML (data/raw/)
     ↓  pipeline/bronze.py
-Silver  (cleaned, typed, CPV-enriched)
+Bronze  (8 Parquet tables · raw strings)
     ↓  pipeline/silver.py
-Gold    (4 analytical tables · joined · computed KPIs)
+Silver  (8 cleaned, typed, CPV-enriched Parquet tables)
+    ↓  pipeline/validate_silver.py
+Silver validation report
     ↓  pipeline/gold.py
-ML Models  (win probability · competition · bid estimation)
+Gold    (committed Parquet datasets · starter/smoke tables + dashboard analytics)
     ↓  models/train_models.py
-Dashboard + Chatbot
+ML Models  (win probability · competition · bid estimation)
     ↓  app/streamlit_app.py
+Dashboard + Chatbot
 ```
 
 ---
@@ -28,12 +31,29 @@ Dashboard + Chatbot
 
 ### 1. Clone and install
 
+Use Python 3.11, matching `runtime.txt`.
+
 ```bash
-git clone https://github.com/your-org/ted-procurement.git
-cd ted-procurement
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+git clone https://github.com/nguadamillas/Microsoft-Capstone.git
+cd Microsoft-Capstone
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/nguadamillas/Microsoft-Capstone.git
+cd Microsoft-Capstone
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+The Bronze, Silver, and Gold Parquet datasets are included in GitHub. `data/raw/` is intentionally git-ignored because it contains downloaded TED XML packages.
 
 ### 2. Add your Anthropic API key
 
@@ -51,10 +71,15 @@ To find package IDs for other months, check the [TED release calendar](https://t
 ### 4. Run the pipeline
 
 ```bash
-# Full pipeline (download + transform + build Gold)
+# Rebuild Silver/Gold from the committed Parquet layers
+python -m pipeline.silver
+python -m pipeline.validate_silver
+python -m pipeline.gold
+
+# Full pipeline, including raw XML download
 python -m pipeline.run_pipeline
 
-# Skip download if you already have data/raw/
+# Skip download if data/raw/ already exists locally
 python -m pipeline.run_pipeline --skip-ingest
 
 # Run only one step
@@ -89,12 +114,18 @@ URL: `https://ted.europa.eu/packages/daily/{YYYYNNNNN}`
 
 ## Gold tables reference
 
+The repository includes eight Gold Parquet files. `pipeline.gold` writes the starter/smoke-test Gold tables (`gold_notices`, `gold_lots`, `gold_awards`, `gold_country_kpis`, `gold_cpv_kpis`) and a smoke report. The dashboard analytical tables (`gold_opportunities`, `gold_market_summary`, `gold_cpv_analysis`) are also committed for immediate app use.
+
 | Table | Description | Key columns |
 |---|---|---|
-| `gold_opportunities` | Open Contract Notices (CN) | `notice_id`, `buyer_country`, `estimated`, `cpv_division_name`, `num_lots` |
-| `gold_awards` | Contract Award Notices (CAN) | `awarded_eur`, `savings_pct`, `avg_tenders_per_lot`, `sme_winner` |
-| `gold_market_summary` | Aggregated KPIs by country / CPV / type | `dimension`, `dimension_value`, `total_awarded`, `avg_savings_pct` |
-| `gold_cpv_analysis` | CPV-level competition & value stats | `cpv_division_name`, `avg_competition`, `sme_wins` |
+| `gold_notices` | Notice-level joined summary | `notice_id`, `buyer_country`, `estimated`, `awarded_amount`, `contract_value` |
+| `gold_lots` | Lot-level joined summary | `notice_id`, `lot_id`, `winner_org_id`, `tenders_count`, `awarded_amount` |
+| `gold_awards` | Awarded lot/contract rows | `notice_id`, `lot_result_id`, `winner_org_id`, `awarded_amount`, `contract_value` |
+| `gold_country_kpis` | Country-level KPIs | `buyer_country`, `notice_count`, `total_contract_value`, `avg_tenders_count` |
+| `gold_cpv_kpis` | CPV division KPIs | `cpv_division`, `cpv_division_name`, `notice_count`, `total_contract_value` |
+| `gold_opportunities` | Dashboard opportunity table for open Contract Notices (CN) | `notice_id`, `buyer_country`, `estimated`, `cpv_division_name`, `num_lots` |
+| `gold_market_summary` | Dashboard KPIs by country / CPV / procedure type | `dimension`, `dimension_value`, `total_awarded`, `avg_savings_pct` |
+| `gold_cpv_analysis` | Dashboard CPV-level competition and value stats | `cpv_division_name`, `avg_competition`, `sme_wins` |
 
 ---
 
@@ -113,33 +144,41 @@ Models saved to `models/saved/` as `.joblib` files with accompanying feature imp
 ## Project structure
 
 ```
-ted_procurement/
+Microsoft-Capstone/
+├── runtime.txt                ← deployment Python runtime
 ├── config.py                  ← date ranges, paths, API keys, CPV lookup
 ├── requirements.txt
 ├── .env                       ← ANTHROPIC_API_KEY (git-ignored)
+├── analytics/                 ← business analysis scripts
+├── assistant/                 ← standalone chatbot prototype
+├── ml/                        ← standalone EDA and model scripts
 ├── pipeline/
 │   ├── ingest.py              ← download TED XML packages
 │   ├── bronze.py              ← XML → 8 Parquet tables
 │   ├── silver.py              ← type casting, deduplication, CPV enrichment
-│   ├── gold.py                ← joins, aggregations, computed KPIs
+│   ├── validate_silver.py     ← Silver quality checks
+│   ├── gold.py                ← starter/smoke Gold tables and report
 │   └── run_pipeline.py        ← orchestrator
 ├── models/
 │   ├── train_models.py        ← feature engineering + 3 LightGBM models
 │   └── saved/                 ← .joblib model files + metrics JSON
 ├── app/
-│   └── streamlit_app.py       ← dashboard (opportunities, awards) + chatbot
+│   ├── streamlit_app.py       ← Streamlit dashboard
+│   ├── dashboard.py           ← expanded dashboard experience
+│   ├── procurement_assistant.py
+│   └── project_chatbot.py
 └── data/
-    ├── raw/                   ← extracted XML files per package
-    ├── bronze/                ← 8 Parquet tables (raw strings)
-    ├── silver/                ← 8 cleaned Parquet tables
-    └── gold/                  ← 4 analytical Parquet tables
+    ├── raw/                   ← extracted XML files per package (git-ignored)
+    ├── bronze/                ← 8 committed Parquet tables
+    ├── silver/                ← 8 committed Parquet tables
+    └── gold/                  ← 8 committed Parquet tables
 ```
 
 ---
 
 ## Submission checklist
 
-- [ ] Public GitHub repo with all code, notebooks, and this README
+- [ ] Public GitHub repo with code, committed Parquet datasets, and this README
 - [ ] Executive slide deck (see report outline below)
 - [ ] Written report (30 pages max)
 
