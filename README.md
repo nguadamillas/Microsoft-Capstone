@@ -180,11 +180,11 @@ Microsoft-Capstone/
 
 - [ ] Public GitHub repo with code, committed Parquet datasets, and this README
 - [ ] Executive slide deck (see report outline below)
-- [ ] Written report (30 pages max)
+- [ ] Written report (20 pages max)
 
 ---
 
-## Report outline (30 pages)
+## Report outline (20 pages)
 
 1. **Executive summary** (1p) — problem, approach, key findings
 2. **Data source** (2p) — TED/eForms, schema, volume, quality
