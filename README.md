@@ -114,7 +114,7 @@ URL: `https://ted.europa.eu/packages/daily/{YYYYNNNNN}`
 
 ## Gold tables reference
 
-The repository includes eight Gold Parquet files. `pipeline.gold` writes the starter/smoke-test Gold tables (`gold_notices`, `gold_lots`, `gold_awards`, `gold_country_kpis`, `gold_cpv_kpis`) and a smoke report. The dashboard analytical tables (`gold_opportunities`, `gold_market_summary`, `gold_cpv_analysis`) are also committed for immediate app use.
+The repository includes ten Gold Parquet files. `pipeline.gold` writes the starter/smoke-test Gold tables (`gold_notices`, `gold_lots`, `gold_awards`, `gold_country_kpis`, `gold_cpv_kpis`) and a smoke report. Dashboard analytical tables (`gold_opportunities`, `gold_market_summary`, `gold_cpv_analysis`) and ML/enrichment datasets (`gold_notice_enrichment`, `gold_bid_win_probability`) are also committed for immediate app and analysis use.
 
 | Table | Description | Key columns |
 |---|---|---|
@@ -126,6 +126,8 @@ The repository includes eight Gold Parquet files. `pipeline.gold` writes the sta
 | `gold_opportunities` | Dashboard opportunity table for open Contract Notices (CN) | `notice_id`, `buyer_country`, `estimated`, `cpv_division_name`, `num_lots` |
 | `gold_market_summary` | Dashboard KPIs by country / CPV / procedure type | `dimension`, `dimension_value`, `total_awarded`, `avg_savings_pct` |
 | `gold_cpv_analysis` | Dashboard CPV-level competition and value stats | `cpv_division_name`, `avg_competition`, `sme_wins` |
+| `gold_notice_enrichment` | Notice-level ML enrichment | `notice_id`, `cpv_pred`, `cpv_confidence`, `predicted_award_value`, `total_awarded_actual` |
+| `gold_bid_win_probability` | Tender-level bid/win probability dataset | `notice_id`, `lot_id`, `tender_id`, `tender_value`, `win_probability`, `is_winner_actual` |
 
 ---
 
@@ -171,7 +173,7 @@ Microsoft-Capstone/
     ├── raw/                   ← extracted XML files per package (git-ignored)
     ├── bronze/                ← 8 committed Parquet tables
     ├── silver/                ← 8 committed Parquet tables
-    └── gold/                  ← 8 committed Parquet tables
+    └── gold/                  ← 10 committed Parquet tables
 ```
 
 ---
